@@ -11,6 +11,16 @@ pub const B_COEFF: Fq = Fq(FqRepr([
     0x8d6661e2fdf49a,
 ]));
 
+/// FQ2_NONRESIDUE = -5
+pub const FQ2_NONRESIDUE: Fq = Fq(FqRepr([
+    0xfc0b8000000002fa,
+    0x97d39cf6e000018b,
+    0x2072420fbfa05044,
+    0xcbbcbd50d97c3802,
+    0xbaf1ec35813f9eb,
+    0x9974a2c0945ad2,
+]));
+
 // The generators of G1/G2 are computed by finding the lexicographically smallest valid x coordinate,
 // and its lexicographically smallest y coordinate and multiplying it by the cofactor such that the
 // result is nonzero.
@@ -393,12 +403,12 @@ pub const FROBENIUS_COEFF_FQ12_C1: [Fq2; 12] = [
 
 // -((2**377) mod q) mod q
 pub const NEGATIVE_ONE: Fq = Fq(FqRepr([
-    0x43f5fffffffcaaae,
-    0x32b7fff2ed47fffd,
-    0x7e83a49a2e99d69,
-    0xeca8f3318332bb7a,
-    0xef148d1ea0f4c069,
-    0x40ab3263eff0206,
+    2022196864061697551u64,
+    17419102863309525423u64,
+    8564289679875062096u64,
+    17152078065055548215u64,
+    17966377291017729567u64,
+    68610905582439508u64,
 ]));
 
 #[derive(PrimeField)]
