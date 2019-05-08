@@ -21,6 +21,17 @@ pub const FQ2_NONRESIDUE: Fq = Fq(FqRepr([
     0x9974a2c0945ad2,
 ]));
 
+pub const FQ2_QUADRATIC_NONRESIDUE: (Fq, Fq) = (
+    Fq(FqRepr([0, 0, 0, 0, 0, 0])),
+    Fq(FqRepr([
+        202099033278250856u64,
+        5854854902718660529u64,
+        11492539364873682930u64,
+        8885205928937022213u64,
+        5545221690922665192u64,
+        39800542322357402u64,
+    ])),
+);
 // The generators of G1/G2 are computed by finding the lexicographically smallest valid x coordinate,
 // and its lexicographically smallest y coordinate and multiplying it by the cofactor such that the
 // result is nonzero.
