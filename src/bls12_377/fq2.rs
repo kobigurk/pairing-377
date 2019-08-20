@@ -1,5 +1,5 @@
 use super::fq::{Fq, FQ2_NONRESIDUE, FROBENIUS_COEFF_FQ2_C1, NEGATIVE_ONE};
-use ff::{Field, SqrtField};
+use ff::{Field, SqrtField, LegendreSymbol};
 use rand::{Rand, Rng};
 
 use std::cmp::Ordering;
@@ -37,6 +37,16 @@ impl PartialOrd for Fq2 {
 }
 
 impl Fq2 {
+    fn mul_fp_by_nonresidue(fe: &Fq) -> Fq {
+        let original = fe;
+        let mut fe = *fe;
+        fe.double();
+        fe.negate();
+        fe.double();
+        fe.sub_assign(&original);
+
+        fe
+    }
     /// Multiply this element by the cubic and quadratic nonresidue 1 + u.
     pub fn mul_by_nonresidue(&mut self) {
         let fe = self.c1;
@@ -59,12 +69,12 @@ impl Fq2 {
 
     /// Norm of Fq2 as extension field in i over Fq
     pub fn norm(&self) -> Fq {
-        let mut t0 = self.c0;
-        let mut t1 = self.c1;
+        let mut t0 = self.c0.clone();
+        let mut t1 = self.c1.clone();
         t0.square();
         t1.square();
 
-        t1.mul_assign(&FQ2_NONRESIDUE);
+        t1 = Self::mul_fp_by_nonresidue(&t1);
         t1.negate();
         t1.add_assign(&t0);
 
@@ -101,19 +111,24 @@ impl Field for Fq2 {
     }
 
     fn square(&mut self) {
-        let mut ab = self.c0;
-        ab.mul_assign(&self.c1);
-        let mut c0c1 = self.c0;
-        c0c1.add_assign(&self.c1);
-        let mut c0 = self.c1;
-        c0.negate();
-        c0.add_assign(&self.c0);
-        c0.mul_assign(&c0c1);
-        c0.sub_assign(&ab);
-        self.c1 = ab;
-        self.c1.add_assign(&ab);
-        c0.add_assign(&ab);
+        let mut v0 = self.c0.clone();
+        v0.sub_assign(&self.c1);
+        let mut v3 = self.c0.clone();
+        v3.sub_assign(&Self::mul_fp_by_nonresidue(&self.c1));
+        let mut v2 = self.c0.clone();
+        v2.mul_assign(&self.c1);
+
+        v0.mul_assign(&v3);
+        v0.add_assign(&v2);
+
+        let mut c1 = v2.clone();
+        c1.double();
+
+        let mut c0 = v0.clone();
+        c0.add_assign(&Self::mul_fp_by_nonresidue(&v2));
+
         self.c0 = c0;
+        self.c1 = c1;
     }
 
     fn double(&mut self) {
@@ -148,7 +163,7 @@ impl Field for Fq2 {
         self.c1.sub_assign(&aa);
         self.c1.sub_assign(&bb);
         self.c0 = aa;
-        self.c0.sub_assign(&bb);
+        self.c0.add_assign(&Self::mul_fp_by_nonresidue(&bb));
     }
 
     fn inverse(&self) -> Option<Self> {
@@ -156,7 +171,7 @@ impl Field for Fq2 {
         t1.square();
         let mut t0 = self.c0;
         t0.square();
-        t0.add_assign(&t1);
+        t0.sub_assign(&Self::mul_fp_by_nonresidue(&t1));
         t0.inverse().map(|t| {
             let mut tmp = Fq2 {
                 c0: self.c0,
@@ -183,56 +198,34 @@ impl SqrtField for Fq2 {
     fn sqrt(&self) -> Option<Self> {
         // Algorithm 9, https://eprint.iacr.org/2012/685.pdf
 
+        if self.c1.is_zero() {
+            return self.c0.sqrt().map(|c0| Self{ c0: c0, c1: Fq::zero()});
+        }
         if self.is_zero() {
             Some(Self::zero())
+        } else if self.legendre() == LegendreSymbol::QuadraticNonResidue {
+            None
         } else {
-            // a1 = self^((q - 3) / 4)
-            let mut a1 = self.pow([
-                0xee7fbfffffffeaaa,
-                0x7aaffffac54ffff,
-                0xd9cc34a83dac3d89,
-                0xd91dd2e13ce144af,
-                0x92c6e9ed90d2eb35,
-                0x680447a8e5ff9a6,
-            ]);
-            let mut alpha = a1;
-            alpha.square();
-            alpha.mul_assign(self);
-            let mut a0 = alpha;
-            a0.frobenius_map(1);
-            a0.mul_assign(&alpha);
-
-            let neg1 = Fq2 {
-                c0: NEGATIVE_ONE,
-                c1: Fq::zero(),
-            };
-
-            if a0 == neg1 {
-                None
-            } else {
-                a1.mul_assign(self);
-
-                if alpha == neg1 {
-                    a1.mul_assign(&Fq2 {
-                        c0: Fq::zero(),
-                        c1: Fq::one(),
-                    });
-                } else {
-                    alpha.add_assign(&Fq2::one());
-                    // alpha = alpha^((q - 1) / 2)
-                    alpha = alpha.pow([
-                        0xdcff7fffffffd555,
-                        0xf55ffff58a9ffff,
-                        0xb39869507b587b12,
-                        0xb23ba5c279c2895f,
-                        0x258dd3db21a5d66b,
-                        0xd0088f51cbff34d,
-                    ]);
-                    a1.mul_assign(&alpha);
-                }
-
-                Some(a1)
+            let mut two_inv = Fq::one();
+            two_inv.double();
+            let two_inv = two_inv.inverse().unwrap();
+            let mut alpha = self.norm().sqrt().unwrap();
+            let mut delta = alpha;
+            delta.add_assign(&self.c0);
+            delta.mul_assign(&two_inv);
+            if delta.legendre() == LegendreSymbol::QuadraticNonResidue {
+                delta.sub_assign(&alpha);
             }
+            let c0 = delta.sqrt().unwrap();
+            let c0_inv = c0.inverse().unwrap();
+
+            let mut c1 = self.c1.clone();
+            c1.mul_assign(&two_inv);
+            c1.mul_assign(&c0_inv);
+            Some(Self {
+                c0: c0,
+                c1: c1,
+            })
         }
     }
 }
@@ -298,13 +291,17 @@ fn test_fq2_squaring() {
         c1: Fq::one(),
     }; // u + 1
     a.square();
+
+    let mut minus_4 = Fq::from_repr(FqRepr::from(4)).unwrap();
+    minus_4.negate();
+
     assert_eq!(
         a,
         Fq2 {
-            c0: Fq::zero(),
+            c0: minus_4,
             c1: Fq::from_repr(FqRepr::from(2)).unwrap(),
         }
-    ); // 2u
+    ); // -4 + 2u
 
     let mut a = Fq2 {
         c0: Fq::zero(),
@@ -312,13 +309,13 @@ fn test_fq2_squaring() {
     }; // u
     a.square();
     assert_eq!(a, {
-        let mut neg1 = Fq::one();
-        neg1.negate();
+        let mut neg5 = Fq::from_repr(FqRepr::from(5)).unwrap();
+        neg5.negate();
         Fq2 {
-            c0: neg1,
+            c0: neg5,
             c1: Fq::zero(),
         }
-    }); // -1
+    }); // -5
 
     let mut a = Fq2 {
         c0: Fq::from_repr(FqRepr([

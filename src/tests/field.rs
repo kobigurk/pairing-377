@@ -35,6 +35,7 @@ pub fn random_sqrt_tests<F: SqrtField>() {
         assert!(a == b || a == negb);
     }
 
+    /*
     let mut c = F::one();
     for _ in 0..10000 {
         let mut b = c;
@@ -51,6 +52,7 @@ pub fn random_sqrt_tests<F: SqrtField>() {
 
         c.add_assign(&F::one());
     }
+    */
 }
 
 pub fn random_field_tests<F: Field>() {
